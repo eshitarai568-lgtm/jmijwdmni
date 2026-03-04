@@ -3,6 +3,7 @@ const API_BASE = 'http://localhost:5000';
 let currentUser = null;
 let currentPage = 'dashboard';
 let charts = {};
+let dataHistory = [];
 
 let formData = {
     age: 25,
@@ -17,16 +18,44 @@ let formData = {
 
 let lastPrediction = null;
 
+function isLocalStorageAvailable() {
+    try {
+        const test = '__storage_test__';
+        localStorage.setItem(test, test);
+        localStorage.removeItem(test);
+        return true;
+    } catch (e) {
+        console.warn('localStorage is not available');
+        return false;
+    }
+}
+
 function checkAuth() {
-    const user = localStorage.getItem('luna_user');
     const authContainer = document.getElementById('auth-container');
     const appContainer = document.getElementById('app-container');
 
+    if (!isLocalStorageAvailable()) {
+        authContainer.style.display = 'flex';
+        appContainer.style.display = 'none';
+        initializeAuth();
+        return;
+    }
+
+    const user = localStorage.getItem('luna_user');
+
     if (user) {
-        currentUser = JSON.parse(user);
-        authContainer.style.display = 'none';
-        appContainer.style.display = 'flex';
-        initializeApp();
+        try {
+            currentUser = JSON.parse(user);
+            authContainer.style.display = 'none';
+            appContainer.style.display = 'flex';
+            initializeApp();
+        } catch (e) {
+            console.error('Failed to parse stored user data', e);
+            localStorage.removeItem('luna_user');
+            authContainer.style.display = 'flex';
+            appContainer.style.display = 'none';
+            initializeAuth();
+        }
     } else {
         authContainer.style.display = 'flex';
         appContainer.style.display = 'none';
@@ -516,6 +545,7 @@ async function runPrediction() {
         if (response.ok) {
             const data = await response.json();
             lastPrediction = data;
+            recordPredictionEntry(lastPrediction);
             resultMsg.textContent = '✓ Prediction complete. View dashboard for results.';
             resultMsg.className = 'text-sm text-green-400';
 
@@ -533,11 +563,28 @@ async function runPrediction() {
             depression_risk: 0.18 + Math.random() * 0.2
         };
 
+        recordPredictionEntry(lastPrediction);
         setTimeout(() => navigateTo('dashboard'), 500);
     } finally {
         loading.classList.add('hidden');
         predictBtn.disabled = false;
     }
+}
+
+function recordPredictionEntry(prediction) {
+    const entry = {
+        timestamp: Date.now(),
+        formData: { ...formData },
+        prediction: prediction
+    };
+
+    dataHistory.push(entry);
+
+    if (dataHistory.length > 30) {
+        dataHistory.shift();
+    }
+
+    console.log('Prediction recorded. History size:', dataHistory.length);
 }
 
 function buildPredictionPayload() {
@@ -601,9 +648,40 @@ function renderAnalytics(content) {
     }, 100);
 }
 
+function aggregateMoodByPhase() {
+    if (dataHistory.length === 0) {
+        return [2.8, 3.4, 4.1, 3.3];
+    }
+
+    const phases = [
+        { min: 1, max: 7, name: 'Menstrual', data: [] },
+        { min: 8, max: 11, name: 'Follicular', data: [] },
+        { min: 12, max: 16, name: 'Ovulatory', data: [] },
+        { min: 17, max: 28, name: 'Luteal', data: [] }
+    ];
+
+    dataHistory.forEach(entry => {
+        const cycleDay = entry.formData.cycle_day;
+        const moodScore = entry.formData.mood_score;
+
+        phases.forEach(phase => {
+            if (cycleDay >= phase.min && cycleDay <= phase.max) {
+                phase.data.push(moodScore);
+            }
+        });
+    });
+
+    return phases.map(phase => {
+        if (phase.data.length === 0) return 0;
+        return (phase.data.reduce((a, b) => a + b, 0) / phase.data.length).toFixed(1);
+    });
+}
+
 function renderMoodCycleChart() {
     const ctx = document.getElementById('chart-mood-cycle');
     if (!ctx) return;
+
+    const moodData = aggregateMoodByPhase();
 
     charts.moodCycle = new Chart(ctx, {
         type: 'line',
@@ -611,7 +689,7 @@ function renderMoodCycleChart() {
             labels: ['Day 1-7\n(Menstrual)', 'Day 8-11\n(Follicular)', 'Day 12-16\n(Ovulatory)', 'Day 17-28\n(Luteal)'],
             datasets: [{
                 label: 'Average Mood Score',
-                data: [2.8, 3.4, 4.1, 3.3],
+                data: moodData,
                 borderColor: '#a855f7',
                 backgroundColor: 'rgba(168, 85, 247, 0.05)',
                 tension: 0.3,
@@ -639,20 +717,33 @@ function renderMoodCycleChart() {
     });
 }
 
+function getSleepStressData() {
+    if (dataHistory.length === 0) {
+        return [
+            { x: 8, y: 1 }, { x: 7, y: 2 }, { x: 6, y: 3 },
+            { x: 5, y: 4 }, { x: 7.5, y: 2 }, { x: 6.5, y: 3 },
+            { x: 9, y: 1 }, { x: 5.5, y: 4 }, { x: 8.5, y: 1.5 }
+        ];
+    }
+
+    return dataHistory.map(entry => ({
+        x: parseFloat(entry.formData.sleep_duration),
+        y: entry.formData.stress_level
+    }));
+}
+
 function renderSleepStressChart() {
     const ctx = document.getElementById('chart-sleep-stress');
     if (!ctx) return;
+
+    const sleepStressData = getSleepStressData();
 
     charts.sleepStress = new Chart(ctx, {
         type: 'scatter',
         data: {
             datasets: [{
                 label: 'Sleep-Stress Relationship',
-                data: [
-                    { x: 8, y: 1 }, { x: 7, y: 2 }, { x: 6, y: 3 },
-                    { x: 5, y: 4 }, { x: 7.5, y: 2 }, { x: 6.5, y: 3 },
-                    { x: 9, y: 1 }, { x: 5.5, y: 4 }, { x: 8.5, y: 1.5 }
-                ],
+                data: sleepStressData,
                 backgroundColor: '#9333ea',
                 pointRadius: 5
             }]
@@ -676,9 +767,40 @@ function renderSleepStressChart() {
     });
 }
 
+function getActivityWellbeingData() {
+    if (dataHistory.length === 0) {
+        return [65, 72, 78, 75];
+    }
+
+    const ranges = [
+        { min: 0, max: 30, data: [] },
+        { min: 30, max: 60, data: [] },
+        { min: 60, max: 90, data: [] },
+        { min: 90, max: 120, data: [] }
+    ];
+
+    dataHistory.forEach(entry => {
+        const activity = entry.formData.physical_activity;
+        const wellbeing = entry.prediction.wellbeing_score || 0;
+
+        ranges.forEach(range => {
+            if (activity >= range.min && activity < range.max) {
+                range.data.push(wellbeing);
+            }
+        });
+    });
+
+    return ranges.map(range => {
+        if (range.data.length === 0) return 0;
+        return Math.round(range.data.reduce((a, b) => a + b, 0) / range.data.length);
+    });
+}
+
 function renderActivityWellbeingChart() {
     const ctx = document.getElementById('chart-activity-wellbeing');
     if (!ctx) return;
+
+    const wellbeingData = getActivityWellbeingData();
 
     charts.activityWellbeing = new Chart(ctx, {
         type: 'bar',
@@ -686,7 +808,7 @@ function renderActivityWellbeingChart() {
             labels: ['0-30 min', '30-60 min', '60-90 min', '90-120 min'],
             datasets: [{
                 label: 'Average Wellbeing Score',
-                data: [65, 72, 78, 75],
+                data: wellbeingData,
                 backgroundColor: '#9333ea',
                 borderRadius: 4
             }]
@@ -735,7 +857,7 @@ function renderFeatureImportanceChart() {
     if (!ctx) return;
 
     charts.featureImportance = new Chart(ctx, {
-        type: 'barH',
+        type: 'bar',
         data: {
             labels: ['Stress Level', 'Sleep Duration', 'Cycle Day', 'Physical Activity', 'Hormone Intensity', 'Mood Score'],
             datasets: [{
