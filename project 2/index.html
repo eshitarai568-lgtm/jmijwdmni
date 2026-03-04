@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Luna Aura - Behavioral Analytics Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(209, 213, 219, 0.3);
+            border-top-color: #9333ea;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .emoji-btn {
+            transition: transform 0.15s ease, background-color 0.15s ease;
+            font-size: 2.5rem;
+        }
+        .emoji-btn:hover {
+            transform: scale(1.15);
+        }
+        .emoji-btn.selected {
+            transform: scale(1.25);
+            background-color: rgba(147, 51, 234, 0.2);
+            border-color: #9333ea;
+        }
+        .value-pulse {
+            animation: pulse 0.5s ease;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        input[type="range"] {
+            accent-color: #9333ea;
+        }
+    </style>
+</head>
+<body class="bg-gray-950 text-gray-100">
+
+<div id="auth-container" style="display: none;" class="min-h-screen bg-gray-950 flex items-center justify-center px-4">
+    <div class="w-full max-w-md">
+        <div class="bg-gray-900 border border-gray-800 rounded-lg p-8">
+            <div class="text-center mb-8">
+                <div class="text-4xl mb-2">🌙</div>
+                <h1 class="text-2xl font-bold text-white mb-1">Luna Aura</h1>
+                <p class="text-sm text-gray-400">Behavioral Analytics Platform</p>
+            </div>
+
+            <form id="auth-form" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Email</label>
+                    <input type="email" id="auth-email" class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white placeholder-gray-500" placeholder="you@example.com" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Password</label>
+                    <input type="password" id="auth-password" class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white placeholder-gray-500" placeholder="••••••••" required>
+                </div>
+                <div class="flex gap-2">
+                    <button type="button" id="auth-login-btn" class="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 rounded transition">Login</button>
+                    <button type="button" id="auth-signup-btn" class="flex-1 bg-gray-800 hover:bg-gray-700 text-white font-medium py-2 rounded transition">Sign Up</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div id="app-container" class="flex h-screen overflow-hidden">
+    <aside class="w-56 bg-gray-900 border-r border-gray-800 flex flex-col">
+        <div class="p-6 border-b border-gray-800">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-purple-600 rounded flex items-center justify-center text-lg font-bold">🌙</div>
+                <div>
+                    <h1 class="text-lg font-bold text-white">Luna Aura</h1>
+                    <p class="text-xs text-gray-400">Research Platform</p>
+                </div>
+            </div>
+        </div>
+
+        <nav class="flex-1 p-4 space-y-1">
+            <button class="nav-btn w-full text-left px-4 py-2 rounded transition text-gray-300 hover:bg-gray-800" data-page="dashboard">
+                Dashboard
+            </button>
+            <button class="nav-btn w-full text-left px-4 py-2 rounded transition text-gray-300 hover:bg-gray-800" data-page="daily-log">
+                Daily Log
+            </button>
+            <button class="nav-btn w-full text-left px-4 py-2 rounded transition text-gray-300 hover:bg-gray-800" data-page="analytics">
+                Analytics
+            </button>
+            <button class="nav-btn w-full text-left px-4 py-2 rounded transition text-gray-300 hover:bg-gray-800" data-page="model-insights">
+                Model Insights
+            </button>
+            <button class="nav-btn w-full text-left px-4 py-2 rounded transition text-gray-300 hover:bg-gray-800" data-page="research-mode">
+                Research Mode
+            </button>
+        </nav>
+
+        <div class="p-4 border-t border-gray-800">
+            <button id="logout-btn" class="w-full bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm py-2 rounded transition">
+                Logout
+            </button>
+        </div>
+    </aside>
+
+    <main class="flex-1 flex flex-col overflow-hidden">
+        <header class="bg-gray-900 border-b border-gray-800 px-8 py-6">
+            <h2 class="text-2xl font-bold text-white mb-2">Luna Aura</h2>
+            <p class="text-sm font-medium text-purple-400 mb-3">Cycle-Aware AI Mental Wellbeing Intelligence</p>
+            <p class="text-sm text-gray-400 leading-relaxed max-w-4xl">
+                Luna Aura is a behavioral analytics platform designed to explore how physiological and lifestyle signals influence mental wellbeing. The system analyzes daily behavioral inputs including sleep duration, perceived stress, mood state, physical activity, and menstrual cycle phase. Machine learning models trained on behavioral datasets evaluate relationships between these signals to estimate potential fluctuations in emotional wellbeing. Rather than diagnosing mental health conditions, the system provides interpretable analytics that help researchers and individuals understand how behavioral patterns interact with cognitive and emotional states. By visualizing these signals and predictions through an interactive interface, the platform aims to support deeper insight into how lifestyle patterns influence mental health dynamics over time.
+            </p>
+        </header>
+
+        <div class="flex-1 overflow-y-auto p-8">
+            <div id="page-content"></div>
+        </div>
+    </main>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
